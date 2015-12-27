@@ -1,0 +1,112 @@
+---
+title: "Practical Machine Learning Project"
+author: "Joseph Swaminathan"
+date: "December 27, 2015"
+output: html_document
+---
+
+##Executive Summary
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. 
+
+The goal of this project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. 
+
+## Data Processing
+
+### Load the data
+
+The training data for this project are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+```{r, echo=TRUE, cache=TRUE}
+library(utils)
+fileurl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+download.file(fileurl, destfile = "pml-training.csv")
+fileurl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(fileurl, destfile = "pml-testing.csv")
+
+trainset <- read.csv("pml-training.csv", header=TRUE, sep=",", na.strings=c("NA",""))
+testset <- read.csv("pml-testing.csv", header=TRUE, sep=",", na.strings=c("NA",""))
+```
+
+### Clean up the data
+
+Remove the ID column (X)
+
+```{r, echo=TRUE}
+trainData <- subset(trainset, TRUE, select = -X) 
+testData <- subset(testset, TRUE, select = -X)  
+```
+
+### Partition the data given for training into training & validation
+
+```{r, echo=TRUE}
+library(caret)
+subTrainPart = createDataPartition(y=trainData$classe, p=0.6, list=FALSE)
+training = trainData[subTrainPart,]
+validation = trainData[-subTrainPart,]
+```
+
+### Remove columns that has too many NAs
+```{r, echo=TRUE}
+retain <- colSums(!is.na(training[,-ncol(training)]))/nrow(training) >= 0.6
+training <- training[, retain] 
+testData <- testData[, retain]
+```
+
+## Choose a Model
+
+Will choose a model that provides accuracy greater than 95%
+
+As a first choice try Random Forest Model.
+
+```{r, echo=TRUE}
+library(randomForest)
+set.seed(12345)
+
+model <- randomForest(classe~.,data=training) 
+
+```
+
+## Validate the Model
+
+Print the model and check the Accuracy. 
+
+```{r, echo = TRUE}
+print(model)
+```
+
+The accuracy is 99.9 % 
+
+```{r, echo = TRUE}
+plot(model, log ="y", lwd = 2, main = "Random forest accuracy")
+```
+
+Use Confusion Matrix to see how good the predictions are using the validation set
+
+```{r, echo=TRUE}
+confusionMatrix(predict(model,newdata=subset(validation, TRUE, select = -classe)),validation$classe)
+```
+
+Looking at the confusion matrix output we see there are very less errors (possitive number outside of the diagonal). The model seems to be holding good.
+
+## Test the model against test data
+
+Using a portion of training data for validation we find the model is able predict closely the outcome. Now we will use the test data to verify if this model holds good
+
+```{r, echo=TRUE}
+# Coerce testing dataset to same class and strucuture of training dataset 
+testData <- rbind(training[100, -ncol(training)] , testData[, -ncol(testData)]) 
+row.names(testData) <- c(100, 1:20)
+
+# Predict
+predictions <- predict(model,newdata=testData[-1,])
+print(predictions)
+```
+
+The predictions are accurate for all the 20 data present in the test data. Hence Random Forest Model seems to be a good model for this problem
